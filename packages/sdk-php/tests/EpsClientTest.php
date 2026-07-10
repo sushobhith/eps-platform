@@ -209,6 +209,22 @@ final class EpsClientTest extends TestCase
         $this->assertLessThanOrEqual(20, strlen($body['client_ref_id']));
     }
 
+    public function testGeneratesDistinctClientRefIdsForSuccessiveJsonNonGetCalls(): void
+    {
+        $client = new EpsClient('dev123', 'TEST_ACCESS_KEY_DO_NOT_USE', 'sandbox', now: fn () => 1700000000000);
+        $params = [
+            'initiator_id' => '9962981729',
+            'pan_number' => 'ABCDE1234F',
+            'name' => 'Test Name',
+            'dob' => '1990-01-01',
+        ];
+        $firstTarget = $client->resolveTarget('pan-lite', $params);
+        $secondTarget = $client->resolveTarget('pan-lite', $params);
+        $firstBody = json_decode($firstTarget['body'], true);
+        $secondBody = json_decode($secondTarget['body'], true);
+        $this->assertNotSame($firstBody['client_ref_id'], $secondBody['client_ref_id']);
+    }
+
     public function testKeepsExplicitClientRefIdForJsonNonGetCalls(): void
     {
         $client = new EpsClient('dev123', 'TEST_ACCESS_KEY_DO_NOT_USE', 'sandbox', now: fn () => 1700000000000);

@@ -330,6 +330,35 @@ describe("EpsClient.call", () => {
 		expect(String(body["client_ref_id"]).length).toBeLessThanOrEqual(20);
 	});
 
+	it("generates distinct client_ref_id values for successive JSON non-GET calls", async () => {
+		const fetchMock = vi.fn(
+			async (_url: RequestInfo | URL, _init?: RequestInit) =>
+				new Response(JSON.stringify({ status: 0 }), { status: 200 }),
+		);
+		const client = new EpsClient({
+			developerKey: "dev123",
+			accessKey: "TEST_ACCESS_KEY_DO_NOT_USE",
+			environment: "sandbox",
+			fetch: fetchMock as unknown as typeof fetch,
+			now: () => 1700000000000,
+		});
+		const params = {
+			initiator_id: "9962981729",
+			pan_number: "ABCDE1234F",
+			name: "Test Name",
+			dob: "1990-01-01",
+		};
+		await client.call("pan-lite", params);
+		await client.call("pan-lite", params);
+		const firstBody = JSON.parse(
+			fetchMock.mock.calls[0][1]!.body as string,
+		) as Record<string, unknown>;
+		const secondBody = JSON.parse(
+			fetchMock.mock.calls[1][1]!.body as string,
+		) as Record<string, unknown>;
+		expect(firstBody["client_ref_id"]).not.toBe(secondBody["client_ref_id"]);
+	});
+
 	it("keeps an explicit client_ref_id for JSON non-GET calls", async () => {
 		const fetchMock = vi.fn(
 			async (_url: RequestInfo | URL, _init?: RequestInit) =>
