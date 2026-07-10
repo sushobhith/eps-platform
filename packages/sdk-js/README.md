@@ -55,6 +55,11 @@ console.log(result);
 
 `await client.call(slug, params)` signs the request, substitutes any `{token}` path params from `params` (remaining keys become the JSON body — or a `multipart/form-data` body on file-upload endpoints), and returns the parsed JSON response.
 
+For non-GET calls, the SDK auto-generates a short `client_ref_id` when you do
+not pass one. Pass `client_ref_id` explicitly when you need to reuse your own
+idempotency/reference key. GET calls never receive an auto-generated
+`client_ref_id`.
+
 ### File uploads
 
 Endpoints with file params (e.g. `aeps-activate-fingpay`) are sent as `multipart/form-data` automatically. Pass each file param as a local file path (read from disk, filename = basename) or a `Blob`/`File`:

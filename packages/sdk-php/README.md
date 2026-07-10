@@ -55,6 +55,11 @@ client. They are injected into every call as the wire params `initiator_id` / `u
 from `$params` (remaining keys become the JSON body — or a `multipart/form-data` body on
 file-upload endpoints), and returns the decoded JSON response as an associative array.
 
+For non-GET calls, the SDK auto-generates a short `client_ref_id` when you do
+not pass one. Pass `client_ref_id` explicitly when you need to reuse your own
+idempotency/reference key. GET calls never receive an auto-generated
+`client_ref_id`.
+
 ### File uploads
 
 Endpoints with file params (e.g. `aeps-activate-fingpay`) are sent as `multipart/form-data`

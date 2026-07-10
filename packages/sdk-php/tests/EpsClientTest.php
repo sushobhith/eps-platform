@@ -194,4 +194,61 @@ final class EpsClientTest extends TestCase
             'initiator_id' => null,
         ]);
     }
+
+    public function testAutoGeneratesShortClientRefIdForJsonNonGetCalls(): void
+    {
+        $client = new EpsClient('dev123', 'TEST_ACCESS_KEY_DO_NOT_USE', 'sandbox', now: fn () => 1700000000000);
+        $target = $client->resolveTarget('pan-lite', [
+            'initiator_id' => '9962981729',
+            'pan_number' => 'ABCDE1234F',
+            'name' => 'Test Name',
+            'dob' => '1990-01-01',
+        ]);
+        $body = json_decode($target['body'], true);
+        $this->assertMatchesRegularExpression('/^cr[a-z0-9]{14,18}$/', $body['client_ref_id']);
+        $this->assertLessThanOrEqual(20, strlen($body['client_ref_id']));
+    }
+
+    public function testKeepsExplicitClientRefIdForJsonNonGetCalls(): void
+    {
+        $client = new EpsClient('dev123', 'TEST_ACCESS_KEY_DO_NOT_USE', 'sandbox', now: fn () => 1700000000000);
+        $target = $client->resolveTarget('pan-lite', [
+            'initiator_id' => '9962981729',
+            'pan_number' => 'ABCDE1234F',
+            'name' => 'Test Name',
+            'dob' => '1990-01-01',
+            'client_ref_id' => 'CUSTOM-REF-123',
+        ]);
+        $body = json_decode($target['body'], true);
+        $this->assertSame('CUSTOM-REF-123', $body['client_ref_id']);
+    }
+
+    public function testDoesNotAddClientRefIdToGetQueryParams(): void
+    {
+        $client = new EpsClient('dev123', 'TEST_ACCESS_KEY_DO_NOT_USE', 'sandbox', now: fn () => 1700000000000);
+        $target = $client->resolveTarget('dmt-get-sender', [
+            'customer_id' => '9123456789',
+            'initiator_id' => '9962981729',
+            'user_code' => '20810200',
+        ]);
+        $this->assertStringNotContainsString('client_ref_id', $target['url']);
+        $this->assertNull($target['body']);
+    }
+
+    public function testAutoGeneratesClientRefIdForMultipartNonGetCalls(): void
+    {
+        $client = new EpsClient('dev123', 'TEST_ACCESS_KEY_DO_NOT_USE', 'sandbox', now: fn () => 1700000000000);
+        $target = $client->resolveTarget('aeps-activate-fingpay', [
+            'initiator_id' => '9962981729',
+            'user_code' => '20810200',
+            'modelname' => 'Morpho 1300E3',
+            'devicenumber' => 'SN1234567890',
+            'office_address' => [],
+            'address_as_per_proof' => [],
+            'pan_card' => __FILE__,
+            'aadhar_front' => __FILE__,
+            'aadhar_back' => __FILE__,
+        ]);
+        $this->assertMatchesRegularExpression('/^cr[a-z0-9]{14,18}$/', $target['body']['client_ref_id']);
+    }
 }
