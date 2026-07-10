@@ -140,6 +140,12 @@ export const signSecretKey = (accessKey: string, timestamp: string): string => {
 		.digest("base64");
 };
 
+const generateClientRefId = (now: () => number): string => {
+	const timestamp = Math.max(0, Math.floor(now())).toString(36);
+	const entropy = crypto.randomBytes(4).toString("hex");
+	return `cr${timestamp}${entropy}`;
+};
+
 export class EpsClient {
 	private readonly baseUrl: string;
 	private readonly fetchFn: typeof fetch;
@@ -182,6 +188,9 @@ export class EpsClient {
 			}),
 			...params,
 		};
+		if (endpoint.method !== "GET" && merged["client_ref_id"] == null) {
+			merged["client_ref_id"] = generateClientRefId(this.now);
+		}
 		// Spec-driven guard: every requiredParam (from the API spec, baked into the
 		// surface) must be present and non-null before we sign and send.
 		const missing = endpoint.requiredParams.filter(

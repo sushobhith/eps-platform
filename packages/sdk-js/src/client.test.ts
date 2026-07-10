@@ -305,4 +305,131 @@ describe("EpsClient.call", () => {
 		).toThrow(/backend-only/i);
 		delete (globalThis as { window?: unknown }).window;
 	});
+
+	it("auto-generates a short client_ref_id for JSON non-GET calls", async () => {
+		const fetchMock = vi.fn(
+			async (_url: RequestInfo | URL, _init?: RequestInit) =>
+				new Response(JSON.stringify({ status: 0 }), { status: 200 }),
+		);
+		const client = new EpsClient({
+			developerKey: "dev123",
+			accessKey: "TEST_ACCESS_KEY_DO_NOT_USE",
+			environment: "sandbox",
+			fetch: fetchMock as unknown as typeof fetch,
+			now: () => 1700000000000,
+		});
+		await client.call("pan-lite", {
+			initiator_id: "9962981729",
+			pan_number: "ABCDE1234F",
+			name: "Test Name",
+			dob: "1990-01-01",
+		});
+		const [, init] = fetchMock.mock.calls[0];
+		const body = JSON.parse(init!.body as string) as Record<string, unknown>;
+		expect(body["client_ref_id"]).toMatch(/^cr[a-z0-9]{14,18}$/);
+		expect(String(body["client_ref_id"]).length).toBeLessThanOrEqual(20);
+	});
+
+	it("generates distinct client_ref_id values for successive JSON non-GET calls", async () => {
+		const fetchMock = vi.fn(
+			async (_url: RequestInfo | URL, _init?: RequestInit) =>
+				new Response(JSON.stringify({ status: 0 }), { status: 200 }),
+		);
+		const client = new EpsClient({
+			developerKey: "dev123",
+			accessKey: "TEST_ACCESS_KEY_DO_NOT_USE",
+			environment: "sandbox",
+			fetch: fetchMock as unknown as typeof fetch,
+			now: () => 1700000000000,
+		});
+		const params = {
+			initiator_id: "9962981729",
+			pan_number: "ABCDE1234F",
+			name: "Test Name",
+			dob: "1990-01-01",
+		};
+		await client.call("pan-lite", params);
+		await client.call("pan-lite", params);
+		const firstBody = JSON.parse(
+			fetchMock.mock.calls[0][1]!.body as string,
+		) as Record<string, unknown>;
+		const secondBody = JSON.parse(
+			fetchMock.mock.calls[1][1]!.body as string,
+		) as Record<string, unknown>;
+		expect(firstBody["client_ref_id"]).not.toBe(secondBody["client_ref_id"]);
+	});
+
+	it("keeps an explicit client_ref_id for JSON non-GET calls", async () => {
+		const fetchMock = vi.fn(
+			async (_url: RequestInfo | URL, _init?: RequestInit) =>
+				new Response(JSON.stringify({ status: 0 }), { status: 200 }),
+		);
+		const client = new EpsClient({
+			developerKey: "dev123",
+			accessKey: "TEST_ACCESS_KEY_DO_NOT_USE",
+			environment: "sandbox",
+			fetch: fetchMock as unknown as typeof fetch,
+			now: () => 1700000000000,
+		});
+		await client.call("pan-lite", {
+			initiator_id: "9962981729",
+			pan_number: "ABCDE1234F",
+			name: "Test Name",
+			dob: "1990-01-01",
+			client_ref_id: "CUSTOM-REF-123",
+		});
+		const [, init] = fetchMock.mock.calls[0];
+		const body = JSON.parse(init!.body as string) as Record<string, unknown>;
+		expect(body["client_ref_id"]).toBe("CUSTOM-REF-123");
+	});
+
+	it("does not add client_ref_id to GET query params", async () => {
+		const fetchMock = vi.fn(
+			async (_url: RequestInfo | URL, _init?: RequestInit) =>
+				new Response(JSON.stringify({ status: 0 }), { status: 200 }),
+		);
+		const client = new EpsClient({
+			developerKey: "dev123",
+			accessKey: "TEST_ACCESS_KEY_DO_NOT_USE",
+			environment: "sandbox",
+			fetch: fetchMock as unknown as typeof fetch,
+			now: () => 1700000000000,
+		});
+		await client.call("dmt-get-sender", {
+			customer_id: "9123456789",
+			initiator_id: "9962981729",
+			user_code: "20810200",
+		});
+		const [url] = fetchMock.mock.calls[0];
+		expect(String(url)).not.toContain("client_ref_id");
+	});
+
+	it("auto-generates client_ref_id for multipart non-GET calls", async () => {
+		const fetchMock = vi.fn(
+			async (_url: RequestInfo | URL, _init?: RequestInit) =>
+				new Response(JSON.stringify({ status: 0 }), { status: 200 }),
+		);
+		const client = new EpsClient({
+			developerKey: "dev123",
+			accessKey: "TEST_ACCESS_KEY_DO_NOT_USE",
+			environment: "sandbox",
+			fetch: fetchMock as unknown as typeof fetch,
+			now: () => 1700000000000,
+		});
+		const selfPath = fileURLToPath(import.meta.url);
+		await client.call("aeps-activate-fingpay", {
+			initiator_id: "9962981729",
+			user_code: "20810200",
+			modelname: "Morpho 1300E3",
+			devicenumber: "SN1234567890",
+			office_address: {},
+			address_as_per_proof: {},
+			pan_card: selfPath,
+			aadhar_front: selfPath,
+			aadhar_back: selfPath,
+		});
+		const [, init] = fetchMock.mock.calls[0];
+		const body = init!.body as FormData;
+		expect(body.get("client_ref_id")).toMatch(/^cr[a-z0-9]{14,18}$/);
+	});
 });

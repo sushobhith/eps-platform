@@ -45,6 +45,12 @@ final class EpsClient
         return base64_encode(hash_hmac('sha256', $timestamp, $encodedKey, true));
     }
 
+    private function generateClientRefId(): string
+    {
+        $timestamp = base_convert((string) max(0, (int) ($this->now)()), 10, 36);
+        return 'cr' . $timestamp . bin2hex(random_bytes(4));
+    }
+
     /**
      * Lenient, coercion-aware type check against a spec type. Only present
      * values are checked. Unknown types pass. The wire sends everything as
@@ -107,6 +113,10 @@ final class EpsClient
             'user_code' => $this->userCode,
         ], fn ($v) => $v !== null);
         $params = array_merge($defaults, $params);
+
+        if ($endpoint['method'] !== 'GET' && !isset($params['client_ref_id'])) {
+            $params['client_ref_id'] = $this->generateClientRefId();
+        }
 
         // Spec-driven guard: every requiredParam (from the API spec, baked into the
         // surface) must be present and non-null before we sign and send.
