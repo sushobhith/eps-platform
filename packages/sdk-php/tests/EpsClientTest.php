@@ -180,6 +180,48 @@ final class EpsClientTest extends TestCase
         $this->assertStringContainsString('"pan_number":"ABCDE1234F"', $target['body']);
     }
 
+    public function testGeneratesDistinctUuidV4ClientRefIdsForNonGetCalls(): void
+    {
+        $client = new EpsClient('dev123', 'TEST_ACCESS_KEY_DO_NOT_USE', 'sandbox', now: fn () => 1700000000000);
+        $params = [
+            'initiator_id' => '9962981729',
+            'pan_number' => 'ABCDE1234F',
+            'name' => 'Test Name',
+            'dob' => '1990-01-01',
+        ];
+        $first = json_decode($client->resolveTarget('pan-lite', $params)['body'], true);
+        $second = json_decode($client->resolveTarget('pan-lite', $params + ['client_ref_id' => null])['body'], true);
+        $pattern = '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/';
+        $this->assertMatchesRegularExpression($pattern, $first['client_ref_id']);
+        $this->assertMatchesRegularExpression($pattern, $second['client_ref_id']);
+        $this->assertNotSame($first['client_ref_id'], $second['client_ref_id']);
+    }
+
+    public function testPreservesExplicitClientRefIdForNonGetCalls(): void
+    {
+        $client = new EpsClient('dev123', 'TEST_ACCESS_KEY_DO_NOT_USE', 'sandbox', now: fn () => 1700000000000);
+        $target = $client->resolveTarget('pan-lite', [
+            'initiator_id' => '9962981729',
+            'pan_number' => 'ABCDE1234F',
+            'name' => 'Test Name',
+            'dob' => '1990-01-01',
+            'client_ref_id' => 'caller-reference-123',
+        ]);
+        $this->assertSame('caller-reference-123', json_decode($target['body'], true)['client_ref_id']);
+    }
+
+    public function testDoesNotGenerateClientRefIdForGetCalls(): void
+    {
+        $client = new EpsClient('dev123', 'TEST_ACCESS_KEY_DO_NOT_USE', 'sandbox', now: fn () => 1700000000000);
+        $target = $client->resolveTarget('dmt-get-sender', [
+            'customer_id' => '9123456789',
+            'initiator_id' => '9962981729',
+            'user_code' => '20810200',
+        ]);
+        parse_str((string) parse_url($target['url'], PHP_URL_QUERY), $query);
+        $this->assertArrayNotHasKey('client_ref_id', $query);
+    }
+
     public function testExplicitNullPerCallClearsTheDefault(): void
     {
         $client = new EpsClient(
