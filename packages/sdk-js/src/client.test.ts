@@ -293,6 +293,84 @@ describe("EpsClient.call", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
+	it("generates a distinct UUIDv4 client_ref_id for each non-GET call", async () => {
+		const bodies: Record<string, unknown>[] = [];
+		const fetchMock = vi.fn(
+			async (_url: RequestInfo | URL, init?: RequestInit) => {
+				bodies.push(JSON.parse(String(init?.body)));
+				return new Response(JSON.stringify({ status: 0 }), { status: 200 });
+			},
+		);
+		const client = new EpsClient({
+			developerKey: "dev123",
+			accessKey: "TEST_ACCESS_KEY_DO_NOT_USE",
+			environment: "sandbox",
+			fetch: fetchMock as unknown as typeof fetch,
+			now: () => 1700000000000,
+		});
+		const params = {
+			initiator_id: "9962981729",
+			pan_number: "ABCDE1234F",
+			name: "Test Name",
+			dob: "1990-01-01",
+		};
+		await client.call("pan-lite", params);
+		await client.call("pan-lite", { ...params, client_ref_id: null });
+		const ids = bodies.map((body) => body.client_ref_id);
+		expect(ids).toHaveLength(2);
+		for (const id of ids)
+			expect(id).toMatch(
+				/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+			);
+		expect(ids[0]).not.toBe(ids[1]);
+	});
+
+	it("preserves an explicit client_ref_id on non-GET calls", async () => {
+		let body: Record<string, unknown> | undefined;
+		const fetchMock = vi.fn(
+			async (_url: RequestInfo | URL, init?: RequestInit) => {
+				body = JSON.parse(String(init?.body));
+				return new Response(JSON.stringify({ status: 0 }), { status: 200 });
+			},
+		);
+		const client = new EpsClient({
+			developerKey: "dev123",
+			accessKey: "TEST_ACCESS_KEY_DO_NOT_USE",
+			environment: "sandbox",
+			fetch: fetchMock as unknown as typeof fetch,
+			now: () => 1700000000000,
+		});
+		await client.call("pan-lite", {
+			initiator_id: "9962981729",
+			pan_number: "ABCDE1234F",
+			name: "Test Name",
+			dob: "1990-01-01",
+			client_ref_id: "caller-reference-123",
+		});
+		expect(body?.client_ref_id).toBe("caller-reference-123");
+	});
+
+	it("does not generate client_ref_id for GET calls", async () => {
+		const fetchMock = vi.fn(
+			async (_url: RequestInfo | URL, _init?: RequestInit) =>
+				new Response(JSON.stringify({ status: 0 }), { status: 200 }),
+		);
+		const client = new EpsClient({
+			developerKey: "dev123",
+			accessKey: "TEST_ACCESS_KEY_DO_NOT_USE",
+			environment: "sandbox",
+			fetch: fetchMock as unknown as typeof fetch,
+			now: () => 1700000000000,
+		});
+		await client.call("dmt-get-sender", {
+			customer_id: "9123456789",
+			initiator_id: "9962981729",
+			user_code: "20810200",
+		});
+		const [url] = fetchMock.mock.calls[0];
+		expect(new URL(String(url)).searchParams.has("client_ref_id")).toBe(false);
+	});
+
 	it("throws when constructed in a browser-like environment", () => {
 		(globalThis as { window?: unknown }).window = {};
 		expect(
