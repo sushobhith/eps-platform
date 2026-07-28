@@ -182,6 +182,9 @@ export class EpsClient {
 			}),
 			...params,
 		};
+		if (endpoint.method !== "GET" && merged.client_ref_id == null) {
+			merged.client_ref_id = crypto.randomUUID();
+		}
 		// Spec-driven guard: every requiredParam (from the API spec, baked into the
 		// surface) must be present and non-null before we sign and send.
 		const missing = endpoint.requiredParams.filter(
