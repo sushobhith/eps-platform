@@ -71,6 +71,22 @@ final class EpsClient
         }
     }
 
+    private static function generateClientRefId(): string
+    {
+        $bytes = random_bytes(16);
+        $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40);
+        $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
+        $hex = bin2hex($bytes);
+        return sprintf(
+            '%s-%s-%s-%s-%s',
+            substr($hex, 0, 8),
+            substr($hex, 8, 4),
+            substr($hex, 12, 4),
+            substr($hex, 16, 4),
+            substr($hex, 20, 12)
+        );
+    }
+
     public function buildHeaders(bool $multipart = false): array
     {
         $timestamp = (string) ($this->now)();
@@ -107,6 +123,9 @@ final class EpsClient
             'user_code' => $this->userCode,
         ], fn ($v) => $v !== null);
         $params = array_merge($defaults, $params);
+        if ($endpoint['method'] !== 'GET' && !isset($params['client_ref_id'])) {
+            $params['client_ref_id'] = self::generateClientRefId();
+        }
 
         // Spec-driven guard: every requiredParam (from the API spec, baked into the
         // surface) must be present and non-null before we sign and send.
